@@ -511,10 +511,21 @@ For example, in case of MySQL and PostgreSQL, backslashes must be escaped by dou
   (:documentation
    "Create a function that takes parameters, binds them into a query and returns SQL as a string.")
   (:method ((conn dbi-connection) (sql string))
-    (labels ((param-to-sql (param)
+    (labels ((octets-to-hex (octets)
+               (let ((hex (make-string (* 2 (length octets)))))
+                 (loop for byte across octets
+                       for i from 0 by 2
+                       for hi = (ash byte -4)
+                       for lo = (logand byte #xf)
+                       do (setf (aref hex i) (char "0123456789ABCDEF" hi)
+                                (aref hex (1+ i)) (char "0123456789ABCDEF" lo)))
+                 hex))
+             (param-to-sql (param)
                (typecase param
                  (string (concatenate 'string "'" (escape-sql conn param) "'"))
                  (null "NULL")
+                 ((vector (unsigned-byte 8))
+                  (concatenate 'string "X'" (octets-to-hex param) "'"))
                  (t (princ-to-string param)))))
       (let ((sql-parts (split-sequence #\? sql)))
         (lambda (params)
